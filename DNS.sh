@@ -24,16 +24,31 @@ check ()
         fi
 }
 
-get ()
+domain ()
+{
+	read -p "Please Enter your Domain (facebook) : " domain
+	read -p "Please Enter your TLD : " domain_tld
+	read -p "Please Enter your IP (127.0.0.1) : " ip
+	if [ -z "$domain" ];then
+		domain="$USER"
+	fi
+	if [ -z "$ip" ];then
+		ip="127.0.0.1"
+	fi
+	check
+}
+
+virtual_hosting ()
 {
 	i=0
 	while true;do
-		read -p "Do you want to add TLD (com,net,org) ?(y/n): " tld
+		read -p "Do you want to add TLD ?(y/n): " tld
 		if [ "$tld" == "y" ];then
 			mkdir /var/www/html/$domain-$tld
 			echo "<h1>This is Test $domain.$tld</h1>" > /var/www/html/$domain-$tld/index.html
 			echo -e """<VirtualHost $ip:80>\nServerName $domain.$tld\nServerAlias www.$domain.$tld\nDocumentRoot /var/www/html/$domain-$tld\n</VirtualHost>""" >> /etc/sysconfig/httpd
 			echo -e """$ip	www.$domain.$tld	$domain.$tld""" >> /etc/hosts
+			check
 			i=$((i+1))
 		elif [ "$tld" == "n" ];then
 			break
@@ -42,6 +57,19 @@ get ()
 			echo -e ${red}"Try Again !!\n"${nc}
 		fi
 	done
+	check
+}
+
+resolv ()
+{
+	lsattr /etc/resolv.conf
+	chattr -a /etc/resolv.conf
+	lsattr /etc/resolv.conf
+	chattr -i /etc/resolv.conf
+	lsattr /etc/resolv.conf
+	echo "nameserver $ip" > /etc/resolv.conf
+	chattr +i /etc/resolv.conf
+	check
 }
 
 ##############################
@@ -49,18 +77,7 @@ get ()
 ##############################
 
 clear
-
-read -p "Please Enter your Domain (facebook) : " domain
-read -p "Please Enter your IP (127.0.0.1) : " ip
-
-
-if [ -z "$domain" ];then
-	domain="$USER"
-fi
-if [ -z "$ip" ];then
-	ip="127.0.0.1"
-fi
-
+domain
 yum -y install bind bind-chroot caching-nameserver
 check
 service httpd restart
@@ -73,16 +90,16 @@ check
 echo -e """options {
 directory \"/var/named\";
 };
-zone \"$domain.com\" {
+zone \"$domain.$domain_tld\" {
 type master;
-file \"$domain.com.db\";
+file \"$domain.$domain_tld.db\";
 };""" > /etc/named.conf
 check
 
 
 # Create domain.db
 echo -e """\$TTL	86400
-$domain.com.		IN SOA ns1.$domain.com.       root (
+$domain.$domain_tld.		IN SOA ns1.$domain.$domain_tld.       root (
 					42		; serial (d. adams)
 					3H		; refresh
 					15M		; retry
@@ -93,30 +110,15 @@ $domain.com.		IN SOA ns1.$domain.com.       root (
 	 	IN A		$ip
 		IN AAAA		::1
 www		IN A		$ip
-ns1		IN A		$ip""" > /var/named/$domain.com.db
+ns1		IN A		$ip""" > /var/named/$domain.$domain_tld.db
 check
 
 
 service named stop
 check
-
-
-lsattr /etc/resolv.conf
-chattr -a /etc/resolv.conf
-lsattr /etc/resolv.conf
-chattr -i /etc/resolv.conf
-lsattr /etc/resolv.conf
-echo "nameserver $ip" > /etc/resolv.conf
-chattr +i /etc/resolv.conf
-check
-
-
+resolv
 service named start
 check
-
-
-
-
 service httpd start
 check
 
