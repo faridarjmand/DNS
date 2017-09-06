@@ -24,6 +24,24 @@ check ()
         fi
 }
 
+start ()
+{
+	service $1 start
+	check
+}
+
+stop ()
+{
+	service $1 stop
+	check
+}
+
+restart ()
+{
+	service $1 restart
+	check
+}
+
 domain ()
 {
 	read -p "Please Enter your Domain (facebook) : " domain
@@ -72,21 +90,8 @@ resolv ()
 	check
 }
 
-##############################
-############ Main ############
-##############################
-
-clear
-domain
-yum -y install bind bind-chroot caching-nameserver
-check
-service httpd restart
-check
-service named start
-check
-
-
-# Create named.conf
+named_conf ()
+{
 echo -e """options {
 directory \"/var/named\";
 };
@@ -95,9 +100,10 @@ type master;
 file \"$domain.$domain_tld.db\";
 };""" > /etc/named.conf
 check
+}
 
-
-# Create domain.db
+domain_db ()
+{
 echo -e """\$TTL	86400
 $domain.$domain_tld.		IN SOA ns1.$domain.$domain_tld.       root (
 					42		; serial (d. adams)
@@ -112,16 +118,24 @@ $domain.$domain_tld.		IN SOA ns1.$domain.$domain_tld.       root (
 www		IN A		$ip
 ns1		IN A		$ip""" > /var/named/$domain.$domain_tld.db
 check
+}
 
+##############################
+############ Main ############
+##############################
 
-service named stop
-check
+clear
+domain
+yum -y install bind bind-chroot caching-nameserver
+
+restart httpd
+start named
+named_conf
+domain_db
+stop named
 resolv
-service named start
-check
-service httpd start
-check
-
+start named
+start httpd
 
 echo -e """Your Domain = ${green}\"$domain.com\"${nc}    and    Your IP = ${green}\"$ip\"${nc}
 Your Domain = ${green}\"$domain.org\"${nc}    and    Your IP = ${green}\"$sysip\"${nc}"""
