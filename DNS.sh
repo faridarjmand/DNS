@@ -42,6 +42,13 @@ restart ()
 	check
 }
 
+install ()
+{
+	yum -y install httpd bind bind-chroot caching-nameserver openssl
+	check
+	restart httpd
+}
+
 domain ()
 {
 	read -p "Please Enter your Domain (facebook) : " domain
@@ -64,7 +71,7 @@ virtual_hosting ()
 		if [ "$tld" == "y" ];then
 			mkdir /var/www/html/$domain-$tld
 			echo "<h1>This is Test $domain.$tld</h1>" > /var/www/html/$domain-$tld/index.html
-			echo -e """<VirtualHost $ip:80>\nServerName $domain.$tld\nServerAlias www.$domain.$tld\nDocumentRoot /var/www/html/$domain-$tld\n</VirtualHost>""" >> /etc/sysconfig/httpd
+			echo -e """<VirtualHost $ip:80>\nServerName $domain.$tld\nServerAlias www.$domain.$tld\nDocumentRoot /var/www/html/$domain-$tld\n</VirtualHost>""" >> /etc/httpd/conf/httpd.conf
 			echo -e """$ip	www.$domain.$tld	$domain.$tld""" >> /etc/hosts
 			check
 			i=$((i+1))
@@ -88,10 +95,31 @@ resolv ()
 	echo "nameserver $ip" > /etc/resolv.conf
 	chattr +i /etc/resolv.conf
 	check
+	start named
+	start httpd
+}
+
+https ()
+{
+	read -p "Do you want SSL ?(y/n): " ssl
+		if [ "$ssl" == "y" ];then
+			openssl genrsa -des3 -out /etc/httpd/conf/server.key 1024
+			openssl req -new -key server.key -out server.csr
+			openssl x509 -req -days 365 -in server.csr -signkey server.key -out server.crt
+			vim /etc/httpd/conf.d/ssl.conf
+			restart httpd
+		elif [ "$tld" == "n" ];then
+			break
+		else
+			clear
+			echo -e ${red}"Try Again !!\n"${nc}
+		fi
+	check
 }
 
 named_conf ()
 {
+start named
 echo -e """options {
 directory \"/var/named\";
 };
@@ -118,6 +146,13 @@ $domain.$domain_tld.		IN SOA ns1.$domain.$domain_tld.       root (
 www		IN A		$ip
 ns1		IN A		$ip""" > /var/named/$domain.$domain_tld.db
 check
+stop named
+}
+
+end ()
+{
+echo -e """Your Domain = ${green}\"$domain.com\"${nc}    and    Your IP = ${green}\"$ip\"${nc}
+Your Domain = ${green}\"$domain.org\"${nc}    and    Your IP = ${green}\"$sysip\"${nc}"""
 }
 
 ##############################
@@ -126,19 +161,13 @@ check
 
 clear
 domain
-yum -y install bind bind-chroot caching-nameserver
-
-restart httpd
-start named
+install
 named_conf
 domain_db
-stop named
 resolv
-start named
-start httpd
+https
 
-echo -e """Your Domain = ${green}\"$domain.com\"${nc}    and    Your IP = ${green}\"$ip\"${nc}
-Your Domain = ${green}\"$domain.org\"${nc}    and    Your IP = ${green}\"$sysip\"${nc}"""
+end
 
 #############################
 ############ END ############
