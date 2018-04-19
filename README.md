@@ -1,3 +1,2 @@
 # DNS
-wwwwhat ?
-loading
+loading ...
